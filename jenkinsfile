@@ -1,0 +1,52 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = 'ghcr.io/aravindmurugesan2692/helloworld:latest'
+        K8S_DEPLOYMENT_FILE = 'kubernetes/deployment.yaml'
+        KUBE_CONFIG = credentials('your-kube-config-credentials-id')
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git 'your-repo-url'
+            }
+        }
+
+        stage('Build and Package with Maven') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build DOCKER_IMAGE
+                }
+            }
+        }
+
+        stage('Push Docker Image to GitHub Packages') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'your-gh-packages-credentials-id', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                        sh "echo $PASSWORD | docker login ghcr.io -u $USERNAME --password-stdin"
+                        docker push DOCKER_IMAGE
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    withKubeConfig([credentialsId: 'your-kube-config-credentials-id', serverUrl: 'your-kube-api-server-url']) {
+                        sh "kubectl apply -f ${K8S_DEPLOYMENT_FILE}"
+                    }
+                }
+            }
+        }
+    }
+}
